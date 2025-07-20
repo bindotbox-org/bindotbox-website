@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon 3D Bin with Binary Bits</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #vanta-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; }
+        canvas { position: relative; z-index: 1; display: block; }
+        /* Floating bottom menu */
+        #menu {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 12px;
+            padding: 15px 30px;
+            display: flex;
+            gap: 30px;
+            z-index: 5;
+        }
+        #menu a {
+            color: #00ffff;
+            text-decoration: none;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        #menu a:hover {
+            text-decoration: underline;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 600px) {
+            #menu {
+                bottom: 10px;
+                padding: 10px 20px;
+                gap: 15px;
+            }
+            #menu a {
+                font-size: 18px;
+            }
+        }
+    </style>
+    <!-- Global Three.js for Vanta -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.min.js"></script>
+    <!-- Vanta.js for animated background -->
+    <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.21/dist/vanta.net.min.js"></script>
+    <!-- Import map for Three.js modules -->
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.154.0/build/three.module.js",
+            "three/": "https://cdn.jsdelivr.net/npm/three@0.154.0/examples/jsm/"
+          }
+        }
+    </script>
+</head>
+<body>
+<div id="vanta-bg"></div>
+<canvas id="canvas"></canvas>
+<!-- Floating bottom menu -->
+<div id="menu">
+    <a href="index.html">Home</a>
+    <a href="about.html">About</a>
+</div>
+<script>
+    VANTA.NET({
+        el: "#vanta-bg",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        scale: 1.00,
+        color: 0x00ffff,
+        backgroundColor: 0x000000,
+        points: 12.00,
+        maxDistance: 20.00,
+        spacing: 15.00
+    });
+</script>
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/controls/OrbitControls.js';
+    import { EffectComposer } from 'three/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/postprocessing/UnrealBloomPass.js';
+
+    // Renderer
+    const canvas = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    // Scene & Camera
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 3, 6);
+
+    // Bloom Postprocessing
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.85);
+    composer.addPass(bloomPass);
+    // Magenta ambient light for overall scene tint
+    const magentaAmb = new THREE.AmbientLight(0xff00ff, 0.5);
+    scene.add(magentaAmb);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.maxPolarAngle = Math.PI / 2;
+    // Restrict zoom distance to keep the box in focus
+    controls.minDistance = 8;
+    controls.maxDistance = 20;
+
+    // Floor Grid
+    const grid = new THREE.GridHelper(10, 20, 0x00ffff, 0x00ffff);
+    grid.material.opacity = 0.2;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    // Bin parameters
+    const width = 2.0, depth = 2.0, height = 2.5, thickness = 0.2;  // Adjusted to bin-like proportions (shorter height) // vertical rectangle dimensions
+    const mat = new THREE.MeshPhysicalMaterial({
+        color: 0x000000,
+        metalness: 0.6,
+        roughness: 0.3,
+        emissive: 0x001122,
+        emissiveIntensity: 0.2,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.1
+    });
+
+    // Walls (vertical rectangular prism)
+    const halfW = width/2, halfD = depth/2;
+    [halfD - thickness/2, -halfD + thickness/2].forEach(z => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(width, height, thickness), mat);
+        wall.position.set(0, height/2, z);
+        scene.add(wall);
+    });
+    [-halfW + thickness/2, halfW - thickness/2].forEach(x => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(thickness, height, depth), mat);
+        wall.position.set(x, height/2, 0);
+        scene.add(wall);
+    });
+    // Bottom
+    const bottom = new THREE.Mesh(new THREE.BoxGeometry(width, thickness, depth), mat);
+    bottom.position.set(0, thickness/2, 0);
+    scene.add(bottom);
+
+    // Binary bits textures
+    const spriteMat = ['0', '1'].map(c => {
+        const cvs = document.createElement('canvas'); cvs.width = cvs.height = 128;
+        const ctx = cvs.getContext('2d');
+        ctx.fillStyle = '#00ffff'; ctx.font = 'bold 100px monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(c, 64, 64);
+        const tex = new THREE.CanvasTexture(cvs);
+        tex.encoding = THREE.sRGBEncoding;
+        return new THREE.SpriteMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending });
+    });
+
+    const bits = [];
+    function spawn() {
+        const idx = Math.round(Math.random());
+        const spr = new THREE.Sprite(spriteMat[idx]);
+        spr.scale.setScalar(0.5 + Math.random() * 0.5);
+        spr.position.set(
+            (Math.random() - 0.5) * (width - thickness),
+            height + 0.1,
+            (Math.random() - 0.5) * (depth - thickness)
+        );
+        spr.userData.vel = new THREE.Vector3((Math.random() - 0.5) * 0.02, 0.03 + Math.random() * 0.02, (Math.random() - 0.5) * 0.02);
+        scene.add(spr);
+        bits.push(spr);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        if (bits.length < 120) spawn();
+        for (let i = bits.length - 1; i >= 0; i--) {
+            const b = bits[i];
+            b.position.add(b.userData.vel);
+            b.material.opacity = 1 - (b.position.y - height) / 4;
+            if (b.position.y > height + 5) { scene.remove(b); bits.splice(i, 1); }
+        }
+        composer.render();
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+</script>
+</body>
+</html>
